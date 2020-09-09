@@ -1,5 +1,6 @@
 # ARCOS
 Tools to help parse the ARCOS database.
+You can find the ARCOS database for download here: https://www.slcg.com/
 
 parse.py
 - to find unique values in columns
