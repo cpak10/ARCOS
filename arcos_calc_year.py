@@ -9,21 +9,40 @@ keyerror_count = 0
 attributeerror_count = 0
 valueerror_count = 0
 def arcos_run(row):
-    key, conv, gram = row
-    MME = float(conv) * float(gram) * 1000
+    key, pills = row
     if key in final_count:
-        final_count[key] += MME
+        if pills >= 0:
+            x, y = final_count.get(key)
+            x += pills
+            y += 1
+            final_count[key] = [x, y]
+        else:
+            pass
     else:
-        final_count[key] = MME
-search = ['OPTUMRX']
-for chunk in pd.read_csv('arcos_all.tsv', sep='\t', chunksize=1000000):
+        if pills >= 0:
+            final_count[key] = [pills, 1]
+        else:
+            pass
+state_search = ['NY']
+ingre_search = ['HYDROCODONE BITARTRATE HEMIPENTAHYDRATE', 'OXYCODONE HYDROCHLORIDE']
+drug_search = ['HYDROCODONE', 'OXYCODONE']
+pill_search = ['TAB']
+no_dups = ['PRACTITIONER', 'RETAIL PHARMACY', 'CHAIN PHARMACY', 'PRACTITIONER-DW/100', 'PRACTITIONER-DW/30', 'PRACTITIONER-DW/275']
+purch_search = ['S']
+trash = ['MLP-NURSE PRACTITIONER', 'PRACTITIONER-MILITARY']
+for chunk in pd.read_csv('ny_data.csv', sep=',', chunksize=1000000):
     try:
-        narrowed = chunk.loc[chunk['BUYER_NAME'].isin(search)]
+        the_trash = chunk.loc[chunk['BUYER_BUS_ACT'].isin(trash)]
+        chunk = chunk.drop(the_trash.index)
+        chunk = chunk.loc[chunk['BUYER_BUS_ACT'].isin(no_dups)]
+        chunk = chunk.loc[chunk['TRANSACTION_CODE'].isin(purch_search)]
+        chunk = chunk.loc[chunk['Measure'].isin(pill_search)]
+        # chunk = chunk.loc[chunk['DRUG_NAME'].isin(drug_search)]
+        narrowed = chunk.loc[chunk['BUYER_STATE'].isin(state_search)]
         narrowed['cleaned_date'] = pd.to_numeric(narrowed['TRANSACTION_DATE'], errors='coerce').fillna(0)
-        pd.to_numeric(narrowed['MME_Conversion_Factor'], errors='coerce').fillna(0)
-        pd.to_numeric(narrowed['CALC_BASE_WT_IN_GM'], errors='coerce').fillna(0)
-        narrowed['key'] = narrowed['BUYER_NAME'] + '; ' + narrowed['BUYER_BUS_ACT'] + '; ' + narrowed['cleaned_date'].astype(str).str[-4:]
-        apply_set = narrowed[['key', 'MME_Conversion_Factor', 'CALC_BASE_WT_IN_GM']]
+        pd.to_numeric(narrowed['DOSAGE_UNIT'], errors='coerce').fillna(0)
+        narrowed['key'] = narrowed['Combined_Labeler_Name'] + '; ' + narrowed['BUYER_COUNTY'] + '; ' + narrowed['cleaned_date'].astype(str).str[-4:] + '; ' + narrowed['DRUG_NAME']
+        apply_set = narrowed[['key', 'DOSAGE_UNIT']]
         apply_set.apply(arcos_run, axis=1)
     except KeyError:
         keyerror_count += 1
@@ -32,9 +51,9 @@ for chunk in pd.read_csv('arcos_all.tsv', sep='\t', chunksize=1000000):
     except ValueError:
         valueerror_count += 1
     update += 1000000
-    print('Completed ' + str(round(update/3810000, 2)) + '%')
+    print('Completed ' + str(round(update/200000, 2)) + '%')
     print('Found ' + str(keyerror_count) + ' KeyErrors')
     print('Found ' + str(attributeerror_count) + ' AttributeErrors')
     print('Found ' + str(valueerror_count) + ' ValueErrors')
-read_count = (pd.DataFrame(final_count, index=[0])).T
+read_count = pd.DataFrame(final_count).T
 read_count.to_csv(path_or_buf='arcos_mme.csv')
